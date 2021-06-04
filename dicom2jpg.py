@@ -60,7 +60,8 @@ def dicom2jpg(origin, target_root=None, filetype=None):
         # to exclude unsupported SOP class by its UID
         # PDF
         if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.104.1':
-            print('SOP class - 1.2.840.10008.5.1.4.1.1.104.1(Encapsulated PDF Storage) is not supported')
+            print(f'<Warning> {str(file_path)}')
+            print('Encapsulated PDF Storage file is currently not supported')
             continue
         
         # convert pixel_array (img) to -> gray image 
@@ -69,7 +70,8 @@ def dicom2jpg(origin, target_root=None, filetype=None):
         # if fluro movie -> call function recurssively and then pass
         # if pixel_array.shape[2]==3 -> means color files
         if len(pixel_array.shape)==3 and pixel_array.shape[2]!=3:
-            print('Fluoroscopic images...')
+            print(f'<Warning> {str(file_path)}')
+            print('Multi-frame images is currently not supported')
             continue
 
         # rescale slope and intercept first, then adjust window center/width
@@ -116,12 +118,7 @@ def dicom2jpg(origin, target_root=None, filetype=None):
         # Conver to uint8 (8-bit unsigned integer), for image to save/display
         # almost no difference. However, this formula yeild slightly more standard deviation 
         pixel_array = ((pixel_array-pixel_array.min())/(pixel_array.max()-pixel_array.min())) * 255.0
-
-        # These 2 formula are the same
         # pixel_array = (np.maximum(pixel_array,0) / pixel_array.max()) * 255.0
-        #pixel_array = pixel_array - np.min(pixel_array)
-        #pixel_array = pixel_array / np.max(pixel_array)
-        #pixel_array = (pixel_array*255).astype(np.uint8)
 
         # if PhotometricInterpretation == "MONOCHROME1", then inverse; eg. xrays
         try:
