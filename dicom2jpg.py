@@ -30,39 +30,6 @@ from pydicom.pixel_data_handlers.util import apply_voi_lut
 import time
 
 
-
-def get_root_get_dicom_file_list(origin):
-    # if single file, return root folder of origin file and a list of that file
-    origin = Path(origin)
-    dicom_file_list = []
-    
-    # if file or folder does not exist
-    if not origin.exists():
-        raise OSError('File or folder does not exist')
-    # if it is a file
-    if origin.is_file():
-        if origin.suffix.lower()!='.dcm':
-            raise Exception('Input file type should be a DICOM file')
-        else:
-            dicom_file_list = [origin]
-            root_folder = origin.parent
-    # if it is a folder
-    else:
-        # read file
-        for root, sub_f, file in os.walk(origin):
-            for f in file:
-                if f.lower().endswith('.dcm'):
-                    file_path_dcm = Path(root)/Path(f)
-                    # file_path_exp =  folder_destination / Path(f).with_suffix('.jpg')
-                    # stor origin / destination
-                    dicom_file_list.append(file_path_dcm)
-        # sort the list
-        dicom_file_list.sort()
-        # foot folder
-        root_folder = origin.parent
-    return root_folder, dicom_file_list
-
-
 def dicom2jpg(origin, target_root=None, filetype=None):
     """
     origin: can be a .dcm file or a folder
@@ -105,10 +72,12 @@ def dicom2jpg(origin, target_root=None, filetype=None):
             print('Fluoroscopic images...')
             continue
 
+        # rescale slope and intercept first, then adjust window center/width
         # rescale slope, rescale intercept, adjust window and level
         try:
-            rescale_slope = int(ds.RescaleSlope)
-            rescale_intercept = int(ds.RescaleIntercept)
+            # cannot use INT, because resale slope could be<1 
+            rescale_slope = ds.RescaleSlope # int(ds.RescaleSlope)
+            rescale_intercept = ds.RescaleIntercept #  int(ds.RescaleIntercept)
             pixel_array = (pixel_array)*rescale_slope+rescale_intercept
         except:
             pass
@@ -212,5 +181,33 @@ def dicom2jpg(origin, target_root=None, filetype=None):
             cv2.imwrite(str(full_export_fp_fn), pixel_array)
 
 
-
-
+def get_root_get_dicom_file_list(origin):
+    # if single file, return root folder of origin file and a list of that file
+    origin = Path(origin)
+    dicom_file_list = []
+    
+    # if file or folder does not exist
+    if not origin.exists():
+        raise OSError('File or folder does not exist')
+    # if it is a file
+    if origin.is_file():
+        if origin.suffix.lower()!='.dcm':
+            raise Exception('Input file type should be a DICOM file')
+        else:
+            dicom_file_list = [origin]
+            root_folder = origin.parent
+    # if it is a folder
+    else:
+        # read file
+        for root, sub_f, file in os.walk(origin):
+            for f in file:
+                if f.lower().endswith('.dcm'):
+                    file_path_dcm = Path(root)/Path(f)
+                    # file_path_exp =  folder_destination / Path(f).with_suffix('.jpg')
+                    # stor origin / destination
+                    dicom_file_list.append(file_path_dcm)
+        # sort the list
+        dicom_file_list.sort()
+        # root folder
+        root_folder = origin.parent
+    return root_folder, dicom_file_list
