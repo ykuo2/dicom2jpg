@@ -9,10 +9,15 @@ which makes output files looks like what we see on standard DICOM viewers.
 
 @author: Yu Kuo
 
-# Todo: multiprocessing for speeding up
+# Todo: 
+    - support fluoroscopic image export
+    - multiprocessing for speeding up
 
 """
 
+# Fix
+# 20210604 support RGB color image
+# 20210604 skip PDF files
 
 import pydicom
 import cv2
@@ -84,9 +89,21 @@ def dicom2jpg(origin, target_root=None, filetype=None):
     for file_path in dicom_file_list:
         # read images and their pixel data
         ds = pydicom.dcmread(file_path, force=True)
+        
+        # to exclude unsupported SOP class by its UID
+        # PDF
+        if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.104.1':
+            print('SOP class - 1.2.840.10008.5.1.4.1.1.104.1(Encapsulated PDF Storage) is not supported')
+            continue
+        
         # convert pixel_array (img) to -> gray image 
-        # Need JPEG 2000 plugin for pillow
         pixel_array = ds.pixel_array.astype(float)  # preparing for scaling
+        
+        # if fluro movie -> call function recurssively and then pass
+        # if pixel_array.shape[2]==3 -> means color files
+        if len(pixel_array.shape)==3 and pixel_array.shape[2]!=3:
+            print('Fluoroscopic images...')
+            continue
 
         # rescale slope, rescale intercept, adjust window and level
         try:
@@ -183,6 +200,17 @@ def dicom2jpg(origin, target_root=None, filetype=None):
         # make dir
         Path.mkdir(full_export_fp_fn.parent, exist_ok=True, parents=True)
         # write file
-        cv2.imwrite(str(full_export_fp_fn), pixel_array)
+        
+        # if YBR_RCT and RGB data should be convert to BGR and then be converted
+        try:
+            # or use if pixel_array.shape[2]==3 , eg. (1754, 1240, 3)
+            if ds.PhotometricInterpretation=='YBR_RCT' or ds.PhotometricInterpretation=='RGB':
+                cv2.imwrite(str(full_export_fp_fn), cv2.cvtColor(np.float32(pixel_array), cv2.COLOR_RGB2BGR))
+            else:
+                cv2.imwrite(str(full_export_fp_fn), pixel_array)
+        except:
+            cv2.imwrite(str(full_export_fp_fn), pixel_array)
+
+
 
 
