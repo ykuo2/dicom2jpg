@@ -9,7 +9,7 @@ from pydicom.pixel_data_handlers.util import apply_voi_lut
 import time
 
 
-def dicom2jpg(origin, target_root=None, filetype=None):
+def dicom_convertor(origin, target_root=None, filetype=None):
     """
     origin: can be a .dcm file or a folder
     target_root: root of output files and folders; default: root of origin file or folder

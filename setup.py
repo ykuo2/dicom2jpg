@@ -22,8 +22,7 @@ setup(
     author=abouts['__author__'],
     author_email=abouts['__author_email__'],
     license=abouts['__license__'],
-    packages=find_packages(where="dicom2jpg"),  # list folders, not files
-    package_dir={"": "dicom2jpg"},
+    packages=find_packages(),  # list folders, not files
     package_data={'': ['LICENSE']},
     python_requires=">=3.6",
     include_package_data=True,

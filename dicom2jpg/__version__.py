@@ -1,7 +1,7 @@
 
 
 __title__ = 'dicom2jpg'
-__version__ = "0.0.3"
+__version__ = "0.0.5"
 __author__ = 'Yu Kuo'
 __description__ = 'DICOM -> JPG/PNG/BMP'
 __url__ = 'https://github.com/ucs198604/dicom2jpg'
