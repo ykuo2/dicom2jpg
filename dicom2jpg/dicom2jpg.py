@@ -21,8 +21,6 @@ which makes output files looks like what we see on standard DICOM viewers.
 
 import pydicom
 import cv2
-import pandas
-from PIL import Image
 import numpy as np
 from pathlib import Path
 import os
