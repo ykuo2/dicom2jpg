@@ -6,5 +6,5 @@ Created on Sat Jun  5 15:55:12 2021
 @author: yukuo
 """
 
-import dicom2jpg
+import test_version
 
