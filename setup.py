@@ -6,7 +6,7 @@ this_directory = os.path.abspath(os.path.dirname(__file__))
 
 # elegant method used in Requests
 abouts = {}
-with open(os.path.join(this_directory, 'dicom2jpg', '__version__.py'), 'r', 'utf-8') as f:
+with open(os.path.join(this_directory, 'dicom2jpg', '__version__.py'), mode='r', encoding='utf-8') as f:
     exec(f.read(), abouts)
 
 # read the contents of README.md 
@@ -25,11 +25,12 @@ setup(
     packages=find_packages(where="dicom2jpg"),  # list folders, not files
     package_dir={"": "dicom2jpg"},
     package_data={'': ['LICENSE']},
+    python_requires=">=3.6",
     include_package_data=True,
     #['dicom2jpg'],
     install_requires=['pydicom',
                       'numpy', 
-                      'cv2',
+                      'opencv-python',
                       'pylibjpeg',
                       'pylibjpeg-libjpeg',
                       'pylibjpeg-openjpeg',
@@ -42,7 +43,10 @@ setup(
         'License :: OSI Approved :: MIT License',  
         'Operating System :: Microsoft :: Windows',
         'Operating System :: MacOS :: MacOS X',
-        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
         'Topic :: Scientific/Engineering :: Image Processing',
     ],
 )
