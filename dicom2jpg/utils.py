@@ -1,23 +1,4 @@
-# -*- coding: utf-8 -*-
-"""
-dicom2jpg
-=========
-
-A simple function tool to convert DICOM files into jpg, tiff, png, or bmp files.
-It applies window center(level) and window width adjustment, or VOI LUT function to the images,
-which makes output files looks like what we see on standard DICOM viewers.
-
-@author: Yu Kuo
-
-# Todo: 
-    - support fluoroscopic image export
-    - multiprocessing for speeding up
-
-"""
-
-# Fix
-# 20210604 support RGB color image
-# 20210604 skip PDF files
+# utils.py
 
 import pydicom
 import cv2
@@ -32,14 +13,14 @@ def dicom2jpg(origin, target_root=None, filetype=None):
     """
     origin: can be a .dcm file or a folder
     target_root: root of output files and folders; default: root of origin file or folder
-    filetype: can be jpg, jpeg, tiff, png, or bmp
+    filetype: can be jpg, jpeg, png, or bmp
     full target file path = target_root/Today/PatientID_filetype/StudyDate_StudyTime_Modality_AccNum/Ser_Img.filetype
     """
     # set file type
     if filetype is None:
         filetype = 'jpg'
-    elif filetype.lower() not in ['jpg','tiff','png', 'jpeg', 'bmp']:
-        raise Exception('Target file type should be jpg, tiff, png, or bmp')
+    elif filetype.lower() not in ['jpg','png','jpeg', 'bmp']:
+        raise Exception('Target file type should be jpg, png, or bmp')
     
     # get root folder and dicom_file_list
     root_folder, dicom_file_list = get_root_get_dicom_file_list(origin)
@@ -58,8 +39,7 @@ def dicom2jpg(origin, target_root=None, filetype=None):
         # to exclude unsupported SOP class by its UID
         # PDF
         if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.104.1':
-            print(f'<Warning> {str(file_path)}')
-            print('Encapsulated PDF Storage file is currently not supported')
+            print('SOP class - 1.2.840.10008.5.1.4.1.1.104.1(Encapsulated PDF Storage) is not supported')
             continue
         
         # convert pixel_array (img) to -> gray image 
@@ -68,8 +48,7 @@ def dicom2jpg(origin, target_root=None, filetype=None):
         # if fluro movie -> call function recurssively and then pass
         # if pixel_array.shape[2]==3 -> means color files
         if len(pixel_array.shape)==3 and pixel_array.shape[2]!=3:
-            print(f'<Warning> {str(file_path)}')
-            print('Multi-frame images is currently not supported')
+            print('Fluoroscopic images...')
             continue
 
         # rescale slope and intercept first, then adjust window center/width
@@ -116,7 +95,12 @@ def dicom2jpg(origin, target_root=None, filetype=None):
         # Conver to uint8 (8-bit unsigned integer), for image to save/display
         # almost no difference. However, this formula yeild slightly more standard deviation 
         pixel_array = ((pixel_array-pixel_array.min())/(pixel_array.max()-pixel_array.min())) * 255.0
+
+        # These 2 formula are the same
         # pixel_array = (np.maximum(pixel_array,0) / pixel_array.max()) * 255.0
+        #pixel_array = pixel_array - np.min(pixel_array)
+        #pixel_array = pixel_array / np.max(pixel_array)
+        #pixel_array = (pixel_array*255).astype(np.uint8)
 
         # if PhotometricInterpretation == "MONOCHROME1", then inverse; eg. xrays
         try:
@@ -174,6 +158,7 @@ def dicom2jpg(origin, target_root=None, filetype=None):
                 cv2.imwrite(str(full_export_fp_fn), pixel_array)
         except:
             cv2.imwrite(str(full_export_fp_fn), pixel_array)
+        
 
 
 def get_root_get_dicom_file_list(origin):
@@ -206,3 +191,5 @@ def get_root_get_dicom_file_list(origin):
         # root folder
         root_folder = origin.parent
     return root_folder, dicom_file_list
+
+

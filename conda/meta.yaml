@@ -1,0 +1,12 @@
+package:
+  name: dicom2jpg
+  version: 0.0.2
+
+build:
+  number: 1
+
+requirements:
+  run:
+    - python
+about:
+  summary: DICOM -> JPG/PNG/BMP
