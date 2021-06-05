@@ -20,6 +20,7 @@ dicom2jpg.dicom2bmp(dicom_dir, target_root=export_location)
 ```
 **dicom2jpg** 
 converts DICOM images to JPG/PNG/BMP formats. It also applies window center(level) and window width adjustment, or VOI LUT function to the images, which makes output files looks like what we see on standard DICOM viewers.
+
 `dicom2jpg.dicom2jpg(origin, target_root)`
 
 `dicom2jpg.dicom2png(origin, target_root)`
