@@ -1,3 +1,4 @@
 /build/
 /dist/
 dicom2jpg/dicom2jpg.egg-info
+.pypirc
