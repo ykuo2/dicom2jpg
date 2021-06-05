@@ -1,5 +1,5 @@
 # dicom2jpg
-A simple function tool to convert DICOM files into jpg, tiff, png, or bmp files.
+DICOM -> JPG/PNG/BMP
 
 # Intro
 It applies window center(level) and window width adjustment, or VOI LUT function to the images,
@@ -13,6 +13,7 @@ error: OpenCV(4.0.1) C:\ci\opencv-suite_1573470242804\work\modules\imgcodecs\src
 
 # Todo
 - Multiprocessing for speeding up
+- Support TIFF format
 
 # Image examples
 
