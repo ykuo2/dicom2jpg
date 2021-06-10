@@ -11,7 +11,7 @@ which makes output files looks like what we see on standard DICOM viewers.
 from .__version__ import __title__, __description__, __url__, __version__
 from .__version__ import __author__, __author_email__, __license__
 
-from .utils import dicom_convertor
+from .utils import _dicom_convertor
 
 
 def dicom2jpg(origin, target_root=None):
@@ -21,7 +21,7 @@ def dicom2jpg(origin, target_root=None):
     target_root: root of output files and folders
     default target root folder is the root of origin file
     """
-    return dicom_convertor(origin, target_root, filetype='jpg')
+    return _dicom_convertor(origin, target_root, filetype='jpg')
 
 def dicom2png(origin, target_root=None):
     """
@@ -31,7 +31,7 @@ def dicom2png(origin, target_root=None):
     default target root folder is the root of origin file
 
     """
-    return dicom_convertor(origin, target_root, filetype='png')
+    return _dicom_convertor(origin, target_root, filetype='png')
 
 
 def dicom2bmp(origin, target_root=None):
@@ -42,4 +42,4 @@ def dicom2bmp(origin, target_root=None):
     default target root folder is the root of origin file
 
     """
-    return dicom_convertor(origin, target_root, filetype='bmp')
+    return _dicom_convertor(origin, target_root, filetype='bmp')

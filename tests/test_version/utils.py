@@ -8,8 +8,9 @@ import os
 from pydicom.pixel_data_handlers.util import apply_voi_lut
 import time
 
+    
 
-def dicom_convertor(origin, target_root=None, filetype=None):
+def _dicom_convertor(origin, target_root=None, filetype=None):
     """
     origin: can be a .dcm file or a folder
     target_root: root of output files and folders; default: root of origin file or folder
@@ -23,7 +24,7 @@ def dicom_convertor(origin, target_root=None, filetype=None):
         raise Exception('Target file type should be jpg, png, or bmp')
     
     # get root folder and dicom_file_list
-    root_folder, dicom_file_list = get_root_get_dicom_file_list(origin)
+    root_folder, dicom_file_list = _get_root_get_dicom_file_list(origin)
 
     # if target root is not specified, set as same root of origin file 
     if target_root is None:
@@ -161,7 +162,7 @@ def dicom_convertor(origin, target_root=None, filetype=None):
         
 
 
-def get_root_get_dicom_file_list(origin):
+def _get_root_get_dicom_file_list(origin):
     # if single file, return root folder of origin file and a list of that file
     origin = Path(origin)
     dicom_file_list = []
