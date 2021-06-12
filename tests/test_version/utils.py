@@ -7,57 +7,42 @@ from pathlib import Path
 import os
 from pydicom.pixel_data_handlers.util import apply_voi_lut
 import time
-
+import io
     
 
-def _get_export_file_path(ds, target_root, filetype):
-    # construct export file path
-    #
-    # Todo: options to file naming
-    # multiprocessing -> may need Manager.dict()
-    # 
-    # Try to get metadata       
-    patient_metadata = _get_metadata(ds)
-    StudyDate = patient_metadata['StudyDate']
-    StudyTime = patient_metadata['StudyTime']
-    AccessionNumber = patient_metadata['AccessionNumber']
-    Modality = patient_metadata['Modality']
-    PatientID = patient_metadata['PatientID']
-    SeriesNumber = patient_metadata['SeriesNumber']
-    InstanceNumber = patient_metadata['InstanceNumber']
-        
-    # Full export file path
-    # target_root/Today/PatientID_filetype/StudyDate_StudyTime_Modality_AccNum/Ser_Img.filetype
-    today_str = time.strftime('%Y%m%d')
-    full_export_fp_fn = target_root/Path(today_str)/Path(f"{PatientID}_{filetype}")/Path(f"{StudyDate}_{StudyTime}_{Modality}_{AccessionNumber}")/Path(f"{SeriesNumber}_{InstanceNumber}.{filetype}")
+
+def _dcmio_to_img(dcm_io):
+    if type(dcm_io)!=io.BytesIO:
+        raise TypeError("BytesIO is expected")
     
-    return full_export_fp_fn
-
-
-
-def _ds_to_file(file_path, target_root, filetype):
-    
-    # read images and their pixel data
-    ds = pydicom.dcmread(file_path, force=True)
+    # read
+    ds = pydicom.dcmread(dcm_io)
     
     # to exclude unsupported SOP class by its UID
     # PDF
     if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.104.1':
         print('SOP class - 1.2.840.10008.5.1.4.1.1.104.1(Encapsulated PDF Storage) is currently not supported')
-        # continue
-        return False
+        return None
     
     # load pixel_array 
-    # This is the time-limited step
-    pixel_array = ds.pixel_array.astype(float)  # preparing for scaling
+    pixel_array = ds.pixel_array.astype(float) 
     
     # if pixel_array.shape[2]==3 -> means color files [x,x,3]
-    # [o,x,x] means multiframe
     if len(pixel_array.shape)==3 and pixel_array.shape[2]!=3:
         print('Multiframe images are currently not supported')
-        # continue
-        return False
+        return None
+    
+    # process the image
+    pixel_array = _pixel_process(ds, pixel_array)
+    
+    return pixel_array
 
+
+def _pixel_process(ds, pixel_array):
+    # Process the images
+    # input image info and original pixeal_array
+    # return processed pixel_array
+    
     # rescale slope, rescale intercept, adjust window and level
     try:
         # cannot use INT, because resale slope could be<1 
@@ -97,7 +82,6 @@ def _ds_to_file(file_path, target_root, filetype):
     # if PhotometricInterpretation == "MONOCHROME1", then inverse; eg. xrays
     try:
         if ds.PhotometricInterpretation == "MONOCHROME1":
-        # if ds.PresentationLUTShape=='INVERSE':  # not always be shown
         # NOT add minus directly
             pixel_array = np.max(pixel_array) - pixel_array
     except:
@@ -105,6 +89,45 @@ def _ds_to_file(file_path, target_root, filetype):
     
     # conver float -> 8-bit
     pixel_array = pixel_array.astype('uint8')
+    
+    return pixel_array
+    
+
+def _get_LUT_value(data, window, level):
+    # Adjust according to LUT, window center(level) and width values
+    # xxx=np.piecewise(x, [condition1,condition2], [func1,func2])
+    return np.piecewise(data, 
+        [data<=(level-0.5-(window-1)/2),
+        data>(level-0.5+(window-1)/2)],
+        [0,255,lambda data: ((data-(level-0.5))/(window-1)+0.5)*(255-0)])
+
+
+
+def _ds_to_file(file_path, target_root, filetype):
+    # The aim of this function is to help multiprocessing
+    # read images and their pixel data
+    ds = pydicom.dcmread(file_path, force=True)
+    
+    # to exclude unsupported SOP class by its UID
+    # PDF
+    if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.104.1':
+        print('SOP class - 1.2.840.10008.5.1.4.1.1.104.1(Encapsulated PDF Storage) is currently not supported')
+        return None
+    
+    # load pixel_array 
+    # *** This is one of the time-limited step  ***
+    pixel_array = ds.pixel_array.astype(float)  # preparing for scaling
+    
+    # if pixel_array.shape[2]==3 -> means color files [x,x,3]
+    # [o,x,x] means multiframe
+    if len(pixel_array.shape)==3 and pixel_array.shape[2]!=3:
+        print('Multiframe images are currently not supported')
+        return None
+
+    #################
+    # Process image #
+    #################
+    pixel_array = _pixel_process(ds, pixel_array)
     
     ##########################
     # convert to pixel image #
@@ -115,10 +138,11 @@ def _ds_to_file(file_path, target_root, filetype):
     ########################
     # Process to save file #
     ########################
-    # YBR_RCT and RGB data already be converted by RGB implicitly by pydicom  
-    # how about YBR_FULL/YBR_FULL_422/Palette Colour/YBR_ICT  ?
+    # Color data already be converted by RGB implicitly by pydicom  
+    # NOTE: only YBR_RCT, RGB are tested...
     # should be convert to "BGR" due to open-cv's RGB arrangement
-    if 'PhotometricInterpretation' in ds and ds.PhotometricInterpretation in ['YBR_RCT','RGB']:
+    if 'PhotometricInterpretation' in ds and ds.PhotometricInterpretation in \
+        ['YBR_RCT','RGB', 'YBR_ICT', 'YBR_PARTIAL_420', 'YBR_FULL_422', 'YBR_FULL', 'PALETTE COLOR']:
         # pixel_array = cv2.cvtColor(np.float32(pixel_array), cv2.COLOR_RGB2BGR)
         pixel_array[:,:,[0,2]] = pixel_array[:,:,[2,0]]
     
@@ -200,13 +224,29 @@ def _get_root_get_dicom_file_list(origin, target_root):
 
 
 
-def _get_LUT_value(data, window, level):
-    # Adjust according to LUT, window center(level) and width values
-    # xxx=np.piecewise(x, [condition1,condition2], [func1,func2])
-    return np.piecewise(data, 
-        [data<=(level-0.5-(window-1)/2),
-        data>(level-0.5+(window-1)/2)],
-        [0,255,lambda data: ((data-(level-0.5))/(window-1)+0.5)*(255-0)])
+def _get_export_file_path(ds, target_root, filetype):
+    # construct export file path
+    #
+    # Todo: options to file naming
+    # multiprocessing -> may need Manager.dict()
+    # 
+    # Try to get metadata       
+    patient_metadata = _get_metadata(ds)
+    StudyDate = patient_metadata['StudyDate']
+    StudyTime = patient_metadata['StudyTime']
+    AccessionNumber = patient_metadata['AccessionNumber']
+    Modality = patient_metadata['Modality']
+    PatientID = patient_metadata['PatientID']
+    SeriesNumber = patient_metadata['SeriesNumber']
+    InstanceNumber = patient_metadata['InstanceNumber']
+        
+    # Full export file path
+    # target_root/Today/PatientID_filetype/StudyDate_StudyTime_Modality_AccNum/Ser_Img.filetype
+    today_str = time.strftime('%Y%m%d')
+    full_export_fp_fn = target_root/Path(today_str)/Path(f"{PatientID}_{filetype}")/Path(f"{StudyDate}_{StudyTime}_{Modality}_{AccessionNumber}")/Path(f"{SeriesNumber}_{InstanceNumber}.{filetype}")
+    
+    return full_export_fp_fn
+
 
 
 def _get_metadata(ds):

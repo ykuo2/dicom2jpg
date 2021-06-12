@@ -12,7 +12,14 @@ from .__version__ import __title__, __description__, __url__, __version__
 from .__version__ import __author__, __author_email__, __license__
 
 from .utils import _dicom_convertor
+from .utils import _dcmio_to_img
 
+
+def io2img(dcmio):
+    """
+    DICOM BytesIO -> ndarray
+    """
+    return _dcmio_to_img(dcmio)
 
 def dicom2img(origin):
     """
