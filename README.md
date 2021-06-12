@@ -20,6 +20,9 @@ dicom2jpg.dicom2png(dicom_dir)
 # convert all DICOM files in dicom_dir folder to bmp, to a specified location
 dicom2jpg.dicom2bmp(dicom_dir, target_root=export_location) 
 
+# convert DICOM ByteIO to numpy.ndarray
+img_data = dicom2jpg.io2img(dicomIO)
+
 ```
 **dicom2jpg** 
 converts DICOM images to `JPG/PNG/BMP/TIFF` formats and to `numpy.ndarray`. 
@@ -34,6 +37,8 @@ It applies window center(level) and window width adjustment, or VOI LUT function
 `dicom2jpg.dicom2tiff(origin, target_root=None)`
 
 `dicom2jpg.dicom2img(origin)`
+
+`dicom2jpg.io2img(dicomIO)`
 
 - origin can be a single DICOM file or folder contains DICOM files
 - target_root is would be the same root folder of the origin if not specified
