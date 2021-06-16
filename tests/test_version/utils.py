@@ -8,7 +8,7 @@ import os
 from pydicom.pixel_data_handlers.util import apply_voi_lut
 import time
 import io
-    
+import concurrent.futures
 
 
 def _dcmio_to_img(dcm_io):
@@ -104,6 +104,8 @@ def _get_LUT_value(data, window, level):
 
 
 def _ds_to_file(file_path, target_root, filetype):
+    # return True if OK
+    # return message for dicom convertor to print out
     # The aim of this function is to help multiprocessing
     # read images and their pixel data
     ds = pydicom.dcmread(file_path, force=True)
@@ -111,8 +113,13 @@ def _ds_to_file(file_path, target_root, filetype):
     # to exclude unsupported SOP class by its UID
     # PDF
     if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.104.1':
-        print('SOP class - 1.2.840.10008.5.1.4.1.1.104.1(Encapsulated PDF Storage) is currently not supported')
-        return None
+        rv = f'{file_path} cannot be converted.\nEncapsulated PDF Storage is currently not supported'
+        #print()
+        return rv
+    # exclude object selection document
+    elif ds.SOPClassUID=='1.2.840.10008.5.1.4.1.1.88.59':
+        rv = f'{file_path} cannot be converted.\nKey Object Selection Document is currently not supported'
+        return rv
     
     # load pixel_array 
     # *** This is one of the time-limited step  ***
@@ -121,8 +128,9 @@ def _ds_to_file(file_path, target_root, filetype):
     # if pixel_array.shape[2]==3 -> means color files [x,x,3]
     # [o,x,x] means multiframe
     if len(pixel_array.shape)==3 and pixel_array.shape[2]!=3:
-        print('Multiframe images are currently not supported')
-        return None
+        rv = f'{file_path} cannot be converted.\nMultiframe images are currently not supported'
+        # print()
+        return rv
 
     #################
     # Process image #
@@ -139,7 +147,7 @@ def _ds_to_file(file_path, target_root, filetype):
     # Process to save file #
     ########################
     # Color data already be converted by RGB implicitly by pydicom  
-    # NOTE: only YBR_RCT, RGB are tested...
+    # !!!!!!!! NOTE: only YBR_RCT, RGB are tested...
     # should be convert to "BGR" due to open-cv's RGB arrangement
     if 'PhotometricInterpretation' in ds and ds.PhotometricInterpretation in \
         ['YBR_RCT','RGB', 'YBR_ICT', 'YBR_PARTIAL_420', 'YBR_FULL_422', 'YBR_FULL', 'PALETTE COLOR']:
@@ -151,12 +159,16 @@ def _ds_to_file(file_path, target_root, filetype):
     # make dir
     Path.mkdir(full_export_fp_fn.parent, exist_ok=True, parents=True)
     # write file
-    cv2.imwrite(str(full_export_fp_fn), pixel_array)
+    if filetype=='jpg':
+        image_quality = [int(cv2.IMWRITE_JPEG_QUALITY), 90]  # 70, 55
+        cv2.imwrite(str(full_export_fp_fn), pixel_array, image_quality)
+    else:
+        cv2.imwrite(str(full_export_fp_fn), pixel_array)
     
     return True
 
 
-def _dicom_convertor(origin, target_root=None, filetype=None):
+def _dicom_convertor(origin, target_root=None, filetype=None, multiprocessing=False):
     """
     origin: can be a .dcm file or a folder
     target_root: root of output files and folders; default: root of origin file or folder
@@ -178,9 +190,18 @@ def _dicom_convertor(origin, target_root=None, filetype=None):
     
     # process image and export files (prepare for multiprocessing)
     # Iterate through all dicom files
-    for file_path in dicom_file_list:
-        _ds_to_file(file_path, target_root, filetype)
-
+    if multiprocessing==False:
+        return_message = [_ds_to_file(file_path, target_root, filetype) for file_path in dicom_file_list]
+        # for file_path in dicom_file_list:
+        #    _ds_to_file(file_path, target_root, filetype)
+    else:
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            return_future = [executor.submit(_ds_to_file, file_path, target_root, filetype) for file_path in dicom_file_list]
+            return_message = [future.result() for future in return_future]
+    # print out error message
+    for mes in return_message:
+        if mes!=True:
+            print(mes)
     return True
 
 
