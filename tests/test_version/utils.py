@@ -9,6 +9,7 @@ from pydicom.pixel_data_handlers.util import apply_voi_lut
 import time
 import io
 import concurrent.futures
+from multiprocessing import Manager
 
 
 def _dcmio_to_img(dcm_io):
@@ -103,11 +104,13 @@ def _get_LUT_value(data, window, level):
 
 
 
-def _ds_to_file(file_path, target_root, filetype):
+def _ds_to_file(file_path, target_root, filetype, anonymous, patient_dict):
     # return True if OK
     # return message for dicom convertor to print out
     # The aim of this function is to help multiprocessing
     # read images and their pixel data
+    # anonymous 
+    # patient_dict = {'last_pt_num':0} for anonymous
     ds = pydicom.dcmread(file_path, force=True)
     
     # to exclude unsupported SOP class by its UID
@@ -155,7 +158,7 @@ def _ds_to_file(file_path, target_root, filetype):
         pixel_array[:,:,[0,2]] = pixel_array[:,:,[2,0]]
     
     # get full export file path and file name
-    full_export_fp_fn = _get_export_file_path(ds, target_root, filetype)
+    full_export_fp_fn = _get_export_file_path(ds, target_root, filetype, anonymous, patient_dict)
     # make dir
     Path.mkdir(full_export_fp_fn.parent, exist_ok=True, parents=True)
     # write file
@@ -168,7 +171,7 @@ def _ds_to_file(file_path, target_root, filetype):
     return True
 
 
-def _dicom_convertor(origin, target_root=None, filetype=None, multiprocessing=False):
+def _dicom_convertor(origin, target_root=None, filetype=None, multiprocessing=False, anonymous=False):
     """
     origin: can be a .dcm file or a folder
     target_root: root of output files and folders; default: root of origin file or folder
@@ -191,13 +194,27 @@ def _dicom_convertor(origin, target_root=None, filetype=None, multiprocessing=Fa
     # process image and export files (prepare for multiprocessing)
     # Iterate through all dicom files
     if multiprocessing==False:
-        return_message = [_ds_to_file(file_path, target_root, filetype) for file_path in dicom_file_list]
+        patient_dict = {'last_pt_num':0}
+        return_message = [_ds_to_file(file_path, target_root, filetype, anonymous, patient_dict) for file_path in dicom_file_list]
         # for file_path in dicom_file_list:
         #    _ds_to_file(file_path, target_root, filetype)
     else:
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-            return_future = [executor.submit(_ds_to_file, file_path, target_root, filetype) for file_path in dicom_file_list]
-            return_message = [future.result() for future in return_future]
+        return_message = []
+        with Manager() as manager:
+            patient_dict = manager.dict({'last_pt_num':0})
+            arguments = [(_ds_to_file, file_path, target_root, filetype, anonymous, patient_dict) for file_path in dicom_file_list]
+            
+            with concurrent.futures.ProcessPoolExecutor() as executor:
+                #return_future = [executor.submit(_ds_to_file, file_path, target_root, filetype, anonymous, patient_dict) for file_path in dicom_file_list]
+                executor.map(_ds_to_file, arguments)
+                #for file_path in dicom_file_list:
+                #    future = executor.submit(_ds_to_file, file_path, target_root, filetype, anonymous, patient_dict)
+                #    try:
+                #        return_message.append(future.result())
+                #    except Exception as e:
+                #        return_message.append([e, file_path])
+                
+                # return_message = [future.result() for future in return_future]
     # print out error message
     for mes in return_message:
         if mes!=True:
@@ -245,7 +262,7 @@ def _get_root_get_dicom_file_list(origin, target_root):
 
 
 
-def _get_export_file_path(ds, target_root, filetype):
+def _get_export_file_path(ds, target_root, filetype, anonymous, patient_dict):
     # construct export file path
     #
     # Todo: options to file naming
@@ -261,13 +278,139 @@ def _get_export_file_path(ds, target_root, filetype):
     SeriesNumber = patient_metadata['SeriesNumber']
     InstanceNumber = patient_metadata['InstanceNumber']
         
-    # Full export file path
-    # target_root/Today/PatientID_filetype/StudyDate_StudyTime_Modality_AccNum/Ser_Img.filetype
-    today_str = time.strftime('%Y%m%d')
-    full_export_fp_fn = target_root/Path(today_str)/Path(f"{PatientID}_{filetype}")/Path(f"{StudyDate}_{StudyTime}_{Modality}_{AccessionNumber}")/Path(f"{SeriesNumber}_{InstanceNumber}.{filetype}")
+    if anonymous==True:
+        
+        # if new patient -> write patient ID
+        if PatientID not in patient_dict:
+            patient_dict['last_pt_num']+=1
+            patient_dict[PatientID] = patient_dict['last_pt_num']
+            patient_dict[f"{PatientID}_last"] = 0
+            patient_dict[f"{PatientID}_unknown"] = 0
+            
+            #patient_dict[PatientID] = {}
+            #patient_dict[PatientID]['patient_num'] = patient_dict['last_pt_num']
+            #patient_dict[PatientID]['unknown_file'] = 0
+            #patient_dict[PatientID]['last_study_num'] = 0
+            
+        # if AccessionNumber not in patient_dict[PatientID]:
+        P_A = f"{PatientID}_{AccessionNumber}"
+        if P_A not in patient_dict:
+            # patient_dict['last_study_num']+=1
+            patient_dict[f"{PatientID}_last"] +=1
+            # patient_dict[PatientID][AccessionNumber] = patient_dict[PatientID]['last_study_num']
+            patient_dict[P_A] = patient_dict[f"{PatientID}_last"]
+        
+        # if any unknown components
+        is_unknown_file = AccessionNumber=='UnknownAccNum' or \
+                            Modality == 'UnknownModality' or \
+                            PatientID == 'UnknownID' or \
+                            SeriesNumber == 'Ser' or \
+                            InstanceNumber == 'Ins'
     
+        # patient folder and study folder
+        # patient_folder_name = f"Patient_{patient_dict[PatientID]['patient_num']}"
+        # study_folder_name = f"{patient_dict[PatientID][AccessionNumber]}_{Modality}"
+        patient_folder_name = f"Patient_{patient_dict[PatientID]}"
+        study_folder_name = f"{patient_dict[P_A]}_{Modality}"
+        
+        # file name. if any unknown components -> use unknown file count
+        if is_unknown_file:
+            # patient_dict[PatientID]['unknown_file']+=1
+            # file_name = f"img_{patient_dict[PatientID]['unknown_file']}.{filetype}"
+            patient_dict[f"{PatientID}_unknown"]+=1
+            unknown_file = patient_dict[f"{PatientID}_unknown"]
+            file_name = f"img_{unknown_file}.{filetype}"
+        else:
+            file_name = f"{SeriesNumber}_{InstanceNumber}.{filetype}"
+        # date
+        today_str = time.strftime('%Y%m%d')
+        
+        full_export_fp_fn = target_root / Path(today_str) / Path(patient_folder_name) / Path(study_folder_name) / Path(file_name)
+
+    # if no anonymous
+    else:
+        # Full export file path
+        # target_root/Today/PatientID_filetype/StudyDate_StudyTime_Modality_AccNum/Ser_Img.filetype
+        today_str = time.strftime('%Y%m%d')
+        full_export_fp_fn = target_root/Path(today_str)/Path(f"{PatientID}_{filetype}")/Path(f"{StudyDate}_{StudyTime}_{Modality}_{AccessionNumber}")/Path(f"{SeriesNumber}_{InstanceNumber}.{filetype}")
+        
+    # print(patient_dict)
     return full_export_fp_fn
 
+
+def _get_anonymous_file_name(ds, target_root, file_type, patient_dict):
+    """
+    input: ds, target_root, patient_dict, file_type
+    output: final full_file_path
+    """
+    # get metadata
+    try:
+        AccessionNumber = ds.AccessionNumber  # Acc number
+    except:
+        AccessionNumber = 'UnknownAccNum'
+    try:
+        Modality = ds.Modality  # modality
+    except:
+        Modality = 'UnknownModality'
+    try:
+        PatientID = ds.PatientID  # patient id
+    except:
+        PatientID = 'UnknownID'
+    try:
+        SeriesNumber = ds.SeriesNumber  # series number
+    except:
+        SeriesNumber = 'Ser'
+    try:
+        InstanceNumber = ds.InstanceNumber
+    except:
+        InstanceNumber = 'Ins'
+        
+        # if new patient -> write patient ID
+    if PatientID not in patient_dict:
+        patient_dict['last_pt_num']+=1
+        patient_dict[PatientID] = {}
+        patient_dict[PatientID]['patient_num'] = patient_dict['last_pt_num']
+        patient_dict[PatientID]['unknown_file'] = 0
+        patient_dict[PatientID]['last_study_num'] = 0
+        
+    if AccessionNumber not in patient_dict[PatientID]:
+        patient_dict[PatientID]['last_study_num']+=1
+        patient_dict[PatientID][AccessionNumber] = patient_dict[PatientID]['last_study_num']
+
+    # if new patient -> write patient ID
+    if PatientID not in patient_dict:
+        patient_dict['last_pt_num']+=1
+        patient_dict[PatientID] = {}
+        patient_dict[PatientID]['patient_num'] = patient_dict['last_pt_num']
+        patient_dict[PatientID]['unknown_file'] = 0
+        patient_dict[PatientID]['last_study_num'] = 0
+        
+    if AccessionNumber not in patient_dict[PatientID]:
+        patient_dict[PatientID]['last_study_num']+=1
+        patient_dict[PatientID][AccessionNumber] = patient_dict[PatientID]['last_study_num']
+
+    # if any unknown components
+    is_unknown_file = AccessionNumber=='UnknownAccNum' or \
+                        Modality == 'UnknownModality' or \
+                        PatientID == 'UnknownID' or \
+                        SeriesNumber == 'Ser' or \
+                        InstanceNumber == 'Ins'
+
+    # patient folder and study folder
+    patient_folder_name = f"Patient_{patient_dict[PatientID]['patient_num']}"
+    study_folder_name = f"{patient_dict[PatientID][AccessionNumber]}_{Modality}"
+    # file name. if any unknown components -> use unknown file count
+    if is_unknown_file:
+        patient_dict[PatientID]['unknown_file']+=1
+        file_name = f"img_{patient_dict[PatientID]['unknown_file']}.{file_type}"
+    else:
+        file_name = f"{SeriesNumber}_{InstanceNumber}.{file_type}"
+    # date
+    today_str = time.strftime('%Y%m%d')
+    
+    full_file_path = target_root / Path(today_str) / Path(patient_folder_name) / Path(study_folder_name) / Path(file_name)
+    
+    return full_file_path
 
 
 def _get_metadata(ds):
