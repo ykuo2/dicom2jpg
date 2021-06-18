@@ -8,7 +8,10 @@ Created on Sat Jun  5 15:55:12 2021
 
 import test_version
 import pathlib
+import time
 
-test_bank = pathlib.Path(r'C:\Users\user\Desktop\dcm_test_bank')
-
-test_version.dicom2jpg(test_bank)
+if __name__ == "__main__":
+    start = time.time()
+    test_bank = pathlib.Path(r'E:')
+    test_version.dicom2png(test_bank)
+    duration = time.time()-start

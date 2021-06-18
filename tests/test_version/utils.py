@@ -317,10 +317,12 @@ def _get_anonymous_full_path_dict(dicom_file_list, target_root, file_type):
     -------
     full_path_dict : dict
         dictionary mapping of {source_file_path : target_full_path}
-
+        # target_root/Today/Patient_SerialNum/ModalitySerialNum_Modality/Series_Instance.filetype
     """
     patient_dict = {'last_pt_num':0}
     full_path_dict = {}
+    
+    # iterate through all file_path
     for file_path in dicom_file_list:
         ds = pydicom.dcmread(file_path, stop_before_pixels=True)
         # get metadata
@@ -388,6 +390,7 @@ def _get_anonymous_full_path_dict(dicom_file_list, target_root, file_type):
         # date
         today_str = time.strftime('%Y%m%d')
 
+        # target_root/Today/Patient_SerialNum/ModalitySerialNum_Modality/
         full_file_path = target_root / Path(today_str) / Path(patient_folder_name) / Path(study_folder_name) / Path(file_name)
         full_path_dict[file_path] = full_file_path
         
