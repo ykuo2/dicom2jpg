@@ -1,7 +1,7 @@
 
 
 __title__ = 'dicom2jpg'
-__version__ = "0.1.0"
+__version__ = "0.0.9"
 __author__ = 'Yu Kuo'
 __description__ = 'DICOM -> JPG/PNG/BMP/TIFF/ndarray'
 __url__ = 'https://github.com/ucs198604/dicom2jpg'
@@ -12,6 +12,8 @@ __license__ = 'MIT'
 ## Issue, pending work
 #  support overlay
 #  image quality, compression
+#  multiprocessing
+#  anomynous filename
 
 ## 0.0.8 
 #  reconstruct function, for future multiprocessing and naming
@@ -20,7 +22,3 @@ __license__ = 'MIT'
 
 ## 0.0.9
 #  add io2img, converting BytesIO to ndarray 
-
-## 0.1.0
-#  support multiprocessing
-#  support exporting anonymous file names
