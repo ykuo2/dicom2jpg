@@ -10,6 +10,7 @@ import time
 import io
 import concurrent.futures
 from multiprocessing import Manager
+from multiprocessing import Pool
 
 
 def _dcmio_to_img(dcm_io):
@@ -199,14 +200,15 @@ def _dicom_convertor(origin, target_root=None, filetype=None, multiprocessing=Fa
         # for file_path in dicom_file_list:
         #    _ds_to_file(file_path, target_root, filetype)
     else:
-        return_message = []
         with Manager() as manager:
-            patient_dict = manager.dict({'last_pt_num':0})
-            arguments = [(_ds_to_file, file_path, target_root, filetype, anonymous, patient_dict) for file_path in dicom_file_list]
+            patient_dict = manager.dict({'last_pt_num':0})            
             
-            with concurrent.futures.ProcessPoolExecutor() as executor:
-                #return_future = [executor.submit(_ds_to_file, file_path, target_root, filetype, anonymous, patient_dict) for file_path in dicom_file_list]
-                executor.map(_ds_to_file, arguments)
+            with Pool() as pool:
+                results = [pool.apply_async(_ds_to_file, (file_path, target_root, filetype, anonymous, patient_dict)) for file_path in dicom_file_list]
+            
+            #with concurrent.futures.ProcessPoolExecutor() as executor:
+            #    return_future = [executor.submit(_ds_to_file, file_path, target_root, filetype, anonymous, patient_dict) for file_path in dicom_file_list]
+                
                 #for file_path in dicom_file_list:
                 #    future = executor.submit(_ds_to_file, file_path, target_root, filetype, anonymous, patient_dict)
                 #    try:
@@ -215,6 +217,7 @@ def _dicom_convertor(origin, target_root=None, filetype=None, multiprocessing=Fa
                 #        return_message.append([e, file_path])
                 
                 # return_message = [future.result() for future in return_future]
+                return_message = [r.get() for r in results]
     # print out error message
     for mes in return_message:
         if mes!=True:
