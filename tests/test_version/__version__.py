@@ -12,7 +12,6 @@ __license__ = 'MIT'
 ## Issue, pending work
 #  support overlay
 #  image quality, compression
-#  anomynous filename
 
 ## 0.0.8 
 #  reconstruct function, for future multiprocessing and naming
@@ -24,3 +23,4 @@ __license__ = 'MIT'
 
 ## 0.1.0
 #  support multiprocessing
+#  support exporting anonymous file names

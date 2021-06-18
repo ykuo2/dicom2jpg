@@ -1,16 +1,16 @@
 # utils.py
 
 import pydicom
-from pydicom.pixel_data_handlers.util import apply_voi_lut
 import cv2
 import numpy as np
 from pathlib import Path
 import os
+from pydicom.pixel_data_handlers.util import apply_voi_lut
 import time
 import io
 import concurrent.futures
-# from multiprocessing import Manager
-# from multiprocessing import Pool
+from multiprocessing import Manager
+from multiprocessing import Pool
 
 
 def _dcmio_to_img(dcm_io):
@@ -110,7 +110,8 @@ def _ds_to_file(file_path, target_root, filetype, anonymous, patient_dict):
     # return message for dicom convertor to print out
     # The aim of this function is to help multiprocessing
     # read images and their pixel data
-    # if anonymous is True -> precalculate patient_dict -> passed as patient dict 
+    # anonymous 
+    # patient_dict = {'last_pt_num':0} for anonymous
     ds = pydicom.dcmread(file_path, force=True)
     
     # to exclude unsupported SOP class by its UID
@@ -157,8 +158,8 @@ def _ds_to_file(file_path, target_root, filetype, anonymous, patient_dict):
         # pixel_array = cv2.cvtColor(np.float32(pixel_array), cv2.COLOR_RGB2BGR)
         pixel_array[:,:,[0,2]] = pixel_array[:,:,[2,0]]
     
-    # get full export file path and file name (anonynmous files are pre-calculated and stored in patient_dict)
-    full_export_fp_fn = _get_export_file_path(ds, file_path, target_root, filetype, anonymous, patient_dict)
+    # get full export file path and file name
+    full_export_fp_fn = _get_export_file_path(ds, target_root, filetype, anonymous, patient_dict)
     # make dir
     Path.mkdir(full_export_fp_fn.parent, exist_ok=True, parents=True)
     # write file
@@ -187,28 +188,45 @@ def _dicom_convertor(origin, target_root=None, filetype=None, multiprocessing=Fa
     # get root folder (as target_root) and dicom_file_list
     target_root, dicom_file_list = _get_root_get_dicom_file_list(origin, target_root)
 
-    # process image and return ndarray, only one file in dicom_file_list, return ndarray data
+    # process image and return ndarray, only one file in dicom_file_list
     if filetype.lower()=='img':
         return _ds_to_file(dicom_file_list[0], target_root, filetype)
     
-    # Pre-load anonymous patient full_path_dict (patient_dict in functions)
-    # multiprocessing.Manager is erroneous, may have ~2% images fail to write image
-    # threading won't be faster
-    if anonymous==True:
-        full_path_dict = _get_anonymous_full_path_dict(dicom_file_list,target_root,filetype)
+    # process image and export files (prepare for multiprocessing)
+    # Iterate through all dicom files
+    if multiprocessing==False:
+        patient_dict = {'last_pt_num':0}
+        return_message = [_ds_to_file(file_path, target_root, filetype, anonymous, patient_dict) for file_path in dicom_file_list]
+        # for file_path in dicom_file_list:
+        #    _ds_to_file(file_path, target_root, filetype)
     else:
-        full_path_dict = None
-    
-    # process image and export files
-    if multiprocessing==True:     
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-            return_future = [executor.submit(_ds_to_file, file_path, target_root, filetype, anonymous, full_path_dict) 
-                             for file_path in dicom_file_list]
-            return_message = [future.result() for future in return_future]
-    else:
-        return_message = [_ds_to_file(file_path, target_root, filetype, anonymous, full_path_dict) 
-                          for file_path in dicom_file_list]
+        with Manager() as manager:
+            patient_dict = manager.dict({'last_pt_num':0})            
         
+        
+            #with Pool() as pool:
+            #    results = [pool.apply_async(_ds_to_file, (file_path, target_root, filetype, anonymous, patient_dict)) for file_path in dicom_file_list]
+            
+            with concurrent.futures.ProcessPoolExecutor() as executor:
+                return_future = [executor.submit(_ds_to_file, file_path, target_root, filetype, anonymous, patient_dict) for file_path in dicom_file_list]
+                
+                #for file_path in dicom_file_list:
+                #    future = executor.submit(_ds_to_file, file_path, target_root, filetype, anonymous, patient_dict)
+                #    try:
+                #        return_message.append(future.result())
+                #    except Exception as e:
+                #        return_message.append([e, file_path])
+                
+                return_message = [future.result() for future in return_future]
+                #return_message = []
+                #for r in results:
+                #    try:
+                #        return_message.append(r.get())
+                #    except Exception as e:
+                #        return_message.append(e)
+            print(patient_dict)
+              
+                # return_message = [r.get(timeout=10) for r in results]
     # print out error message
     for mes in return_message:
         if mes!=True:
@@ -254,7 +272,7 @@ def _get_root_get_dicom_file_list(origin, target_root):
         
     return root_folder, dicom_file_list
 
-def _test_random_remove_attribute(ds):
+def _test_random_remove_attribue(ds):
     
     import random
     rand_list = [1,2,3,4,5]
@@ -272,28 +290,96 @@ def _test_random_remove_attribute(ds):
     return ds
 
 
-def _get_export_file_path(ds, file_path, target_root, filetype, anonymous, patient_dict):
+def _get_export_file_path(ds, target_root, filetype, anonymous, patient_dict):
     # construct export file path
-
-    #### for test: random remove attribute
-    # ds =  _test_random_remove_attribute(ds)
+    #
+    # Todo: options to file naming
+    # multiprocessing -> may need Manager.dict()
     
+    """
+    # randomly remove identity, to test
+    import random
+    rand_list = [1,2,3,4,5]
+    del_n = random.sample(rand_list,random.randint(0,5))
+    
+    def to_del(ds, n):
+        if 1 in n:
+            del ds.AccessionNumber
+        if 2 in n:
+            del ds.Modality
+        if 3 in n:
+            del ds.PatientID
+        if 4 in n:
+            del ds.SeriesNumber
+        if 5 in n:
+            del ds.InstanceNumber
+        return ds
+    ds = to_del(ds, del_n)
+    """
+    ds =  _test_random_remove_attribue(ds)
+    
+    # 
+    # Try to get metadata       
+    patient_metadata = _get_metadata(ds)
+    StudyDate = patient_metadata['StudyDate']
+    StudyTime = patient_metadata['StudyTime']
+    AccessionNumber = patient_metadata['AccessionNumber']
+    Modality = patient_metadata['Modality']
+    PatientID = patient_metadata['PatientID']
+    SeriesNumber = patient_metadata['SeriesNumber']
+    InstanceNumber = patient_metadata['InstanceNumber']
+        
     if anonymous==True:
-        # get from pre-calculated dictionary
-        full_export_fp_fn = patient_dict[file_path]
+        
+        # if new patient -> write patient ID
+        if PatientID not in patient_dict:
+            patient_dict['last_pt_num']+=1
+            patient_dict[PatientID] = patient_dict['last_pt_num']
+            patient_dict[f"{PatientID}_last"] = 0
+            patient_dict[f"{PatientID}_unknown"] = 0
+            
+            #patient_dict[PatientID] = {}
+            #patient_dict[PatientID]['patient_num'] = patient_dict['last_pt_num']
+            #patient_dict[PatientID]['unknown_file'] = 0
+            #patient_dict[PatientID]['last_study_num'] = 0
+            
+        # if AccessionNumber not in patient_dict[PatientID]:
+        P_A = f"{PatientID}_{AccessionNumber}"
+        if P_A not in patient_dict:
+            # patient_dict['last_study_num']+=1
+            patient_dict[f"{PatientID}_last"] +=1
+            # patient_dict[PatientID][AccessionNumber] = patient_dict[PatientID]['last_study_num']
+            patient_dict[P_A] = patient_dict[f"{PatientID}_last"]
+        
+        # if any unknown components
+        is_unknown_file = AccessionNumber=='UnknownAccNum' or \
+                            Modality == 'UnknownModality' or \
+                            PatientID == 'UnknownID' or \
+                            SeriesNumber == 'Ser' or \
+                            InstanceNumber == 'Ins'
     
+        # patient folder and study folder
+        # patient_folder_name = f"Patient_{patient_dict[PatientID]['patient_num']}"
+        # study_folder_name = f"{patient_dict[PatientID][AccessionNumber]}_{Modality}"
+        patient_folder_name = f"Patient_{patient_dict[PatientID]}"
+        study_folder_name = f"{patient_dict[P_A]}_{Modality}"
+        
+        # file name. if any unknown components -> use unknown file count
+        if is_unknown_file:
+            # patient_dict[PatientID]['unknown_file']+=1
+            # file_name = f"img_{patient_dict[PatientID]['unknown_file']}.{filetype}"
+            patient_dict[f"{PatientID}_unknown"]+=1
+            unknown_file = patient_dict[f"{PatientID}_unknown"]
+            file_name = f"img_{unknown_file}.{filetype}"
+        else:
+            file_name = f"{SeriesNumber}_{InstanceNumber}.{filetype}"
+        # date
+        today_str = time.strftime('%Y%m%d')
+        
+        full_export_fp_fn = target_root / Path(today_str) / Path(patient_folder_name) / Path(study_folder_name) / Path(file_name)
+
     # if no anonymous
     else:
-        # Try to get metadata       
-        patient_metadata = _get_metadata(ds)
-        StudyDate = patient_metadata['StudyDate']
-        StudyTime = patient_metadata['StudyTime']
-        AccessionNumber = patient_metadata['AccessionNumber']
-        Modality = patient_metadata['Modality']
-        PatientID = patient_metadata['PatientID']
-        SeriesNumber = patient_metadata['SeriesNumber']
-        InstanceNumber = patient_metadata['InstanceNumber']
-        
         # Full export file path
         # target_root/Today/PatientID_filetype/StudyDate_StudyTime_Modality_AccNum/Ser_Img.filetype
         today_str = time.strftime('%Y%m%d')
@@ -302,101 +388,8 @@ def _get_export_file_path(ds, file_path, target_root, filetype, anonymous, patie
     # print(patient_dict)
     return full_export_fp_fn
 
-def _get_anonymous_full_path_dict(dicom_file_list, target_root, file_type):
-    """
-    Parameters
-    ----------
-    dicom_file_list : list
-        all dicom file Path in a list
-    target_root : Path
-        target root path
-    file_type : str
-        string
-
-    Returns
-    -------
-    full_path_dict : dict
-        dictionary mapping of {source_file_path : target_full_path}
-
-    """
-    patient_dict = {'last_pt_num':0}
-    full_path_dict = {}
-    for file_path in dicom_file_list:
-        ds = pydicom.dcmread(file_path, stop_before_pixels=True)
-        # get metadata
-        try:
-            AccessionNumber = ds.AccessionNumber  # Acc number
-        except:
-            AccessionNumber = 'UnknownAccNum'
-        try:
-            Modality = ds.Modality  # modality
-        except:
-            Modality = 'UnknownModality'
-        try:
-            PatientID = ds.PatientID  # patient id
-        except:
-            PatientID = 'UnknownID'
-        try:
-            SeriesNumber = ds.SeriesNumber  # series number
-        except:
-            SeriesNumber = 'Ser'
-        try:
-            InstanceNumber = ds.InstanceNumber
-        except:
-            InstanceNumber = 'Ins'
-
-            # if new patient -> write patient ID
-        if PatientID not in patient_dict:
-            patient_dict['last_pt_num']+=1
-            patient_dict[PatientID] = {}
-            patient_dict[PatientID]['patient_num'] = patient_dict['last_pt_num']
-            patient_dict[PatientID]['unknown_file'] = 0
-            patient_dict[PatientID]['last_study_num'] = 0
-
-        if AccessionNumber not in patient_dict[PatientID]:
-            patient_dict[PatientID]['last_study_num']+=1
-            patient_dict[PatientID][AccessionNumber] = patient_dict[PatientID]['last_study_num']
-
-        # if new patient -> write patient ID
-        if PatientID not in patient_dict:
-            patient_dict['last_pt_num']+=1
-            patient_dict[PatientID] = {}
-            patient_dict[PatientID]['patient_num'] = patient_dict['last_pt_num']
-            patient_dict[PatientID]['unknown_file'] = 0
-            patient_dict[PatientID]['last_study_num'] = 0
-
-        if AccessionNumber not in patient_dict[PatientID]:
-            patient_dict[PatientID]['last_study_num']+=1
-            patient_dict[PatientID][AccessionNumber] = patient_dict[PatientID]['last_study_num']
-
-        # if any unknown components
-        is_unknown_file = AccessionNumber=='UnknownAccNum' or \
-                            Modality == 'UnknownModality' or \
-                            PatientID == 'UnknownID' or \
-                            SeriesNumber == 'Ser' or \
-                            InstanceNumber == 'Ins'
-
-        # patient folder and study folder
-        patient_folder_name = f"Patient_{patient_dict[PatientID]['patient_num']}"
-        study_folder_name = f"{patient_dict[PatientID][AccessionNumber]}_{Modality}"
-        # file name. if any unknown components -> use unknown file count
-        if is_unknown_file:
-            patient_dict[PatientID]['unknown_file']+=1
-            file_name = f"img_{patient_dict[PatientID]['unknown_file']}.{file_type}"
-        else:
-            file_name = f"{SeriesNumber}_{InstanceNumber}.{file_type}"
-        # date
-        today_str = time.strftime('%Y%m%d')
-
-        full_file_path = target_root / Path(today_str) / Path(patient_folder_name) / Path(study_folder_name) / Path(file_name)
-        full_path_dict[file_path] = full_file_path
-        
-    return full_path_dict
-
-
 
 def _get_anonymous_file_name(ds, target_root, file_type, patient_dict):
-    # currenly of no use
     """
     input: ds, target_root, patient_dict, file_type
     output: final full_file_path
