@@ -1,6 +1,14 @@
 # dicom2jpg
 Converts DICOM to `JPG/PNG/BMP/TIFF` and `numpy.ndarray`
 
+
+
+# Installation
+```
+pip install dicom2jpg
+```
+
+# Introdunction
 ```
 import dicom2jpg
 
@@ -28,13 +36,13 @@ img_data = dicom2jpg.io2img(dicomIO)
 converts DICOM images to `JPG/PNG/BMP/TIFF` formats and to `numpy.ndarray`. 
 It applies window center(level) and window width adjustment, or VOI LUT function to the images, which makes output files looks like what we see on standard DICOM viewers.
 
-`dicom2jpg.dicom2jpg(origin, target_root=None)`
+`dicom2jpg.dicom2jpg(origin, target_root=None, multiprocessing=True, anonymous=False)`
 
-`dicom2jpg.dicom2png(origin, target_root=None)`
+`dicom2jpg.dicom2png(origin, target_root=None, multiprocessing=True, anonymous=False)`
 
-`dicom2jpg.dicom2bmp(origin, target_root=None)`
+`dicom2jpg.dicom2bmp(origin, target_root=None, multiprocessing=True, anonymous=False)`
 
-`dicom2jpg.dicom2tiff(origin, target_root=None)`
+`dicom2jpg.dicom2tiff(origin, target_root=None, multiprocessing=True, anonymous=False)`
 
 `dicom2jpg.dicom2img(origin)`
 
@@ -46,6 +54,11 @@ It applies window center(level) and window width adjustment, or VOI LUT function
 
     > *target_root/Today/PatientID_filetype/StudyDate_StudyTime_Modality_AccNum/Ser_Img.filetype* 
 
+- anonymous file paths are
+
+    > *target_root/Today/Patient_SerialNum/ModalitySerialNum_Modality/Ser_Img.filetype*
+
+
 
 # Image examples
 
@@ -55,19 +68,21 @@ It applies window center(level) and window width adjustment, or VOI LUT function
 
 
 
-# Installation
-```
-pip install dicom2jpg
-```
-
-
 # Todo
-- Multiprocessing for speeding up
 - Support multi-frame images
-- More naming choices, including anomynous file names
 - Image compression
 - Support overlays
    
+   
+# Performance
+- Environment: Windows10, Jupyter Notebook, Python 3.8.10
+- 598MB 1873 files {'CT': 1528, 'CR': 52, 'MR': 174, 'DX': 36}
+- Intel(R) Core(TM) i7-7700 CPU @ 3.60GHz. 4 Cores (hyper-threading off)
+- Tested on Ramdisk (no physical HDD was tortured :P)
 
-
-
+| multiprocessing  |  anonymous |  duration (seconds) |
+|------------|-------------|------------|
+|False|True|154.6-159.7|
+|True|True|79.2-82.9|
+|False|False|157.9-162.8|
+|True|False|56-58.5|
