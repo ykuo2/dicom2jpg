@@ -28,7 +28,7 @@ def dicom2img(origin):
     """
     return _dicom_convertor(origin, target_root=None, filetype='img')
 
-def dicom2tiff(origin, target_root=None, multiprocessing=True, anonymous=False):
+def dicom2tiff(origin, target_root=None, anonymous=False, multiprocessing=True):
     # under construction
     """
     DICOM -> tiff
@@ -40,7 +40,7 @@ def dicom2tiff(origin, target_root=None, multiprocessing=True, anonymous=False):
                             multiprocessing=multiprocessing, 
                             anonymous=anonymous)
 
-def dicom2jpg(origin, target_root=None, multiprocessing=True, anonymous=False):
+def dicom2jpg(origin, target_root=None, anonymous=False, multiprocessing=True):
     """
     DICOM -> jpg
     origin: can be a .dcm file or a folder
@@ -51,7 +51,7 @@ def dicom2jpg(origin, target_root=None, multiprocessing=True, anonymous=False):
                             multiprocessing=multiprocessing, 
                             anonymous=anonymous)
 
-def dicom2png(origin, target_root=None, multiprocessing=True, anonymous=False):
+def dicom2png(origin, target_root=None, anonymous=False, multiprocessing=True):
     """
     DICOM -> png
     origin: can be a .dcm file or a folder
@@ -64,7 +64,7 @@ def dicom2png(origin, target_root=None, multiprocessing=True, anonymous=False):
                             anonymous=anonymous)
 
 
-def dicom2bmp(origin, target_root=None, multiprocessing=True, anonymous=False):
+def dicom2bmp(origin, target_root=None, anonymous=False, multiprocessing=True):
     """
     DICOM -> bmp
     origin: can be a .dcm file or a folder

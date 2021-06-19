@@ -171,7 +171,7 @@ def _ds_to_file(file_path, target_root, filetype, anonymous, patient_dict):
     return True
 
 
-def _dicom_convertor(origin, target_root=None, filetype=None, multiprocessing=False, anonymous=False):
+def _dicom_convertor(origin, target_root=None, filetype=None, anonymous=False, multiprocessing=True):
     """
     origin: can be a .dcm file or a folder
     target_root: root of output files and folders; default: root of origin file or folder
@@ -273,9 +273,9 @@ def _test_random_remove_attribute(ds):
 
 
 def _get_export_file_path(ds, file_path, target_root, filetype, anonymous, patient_dict):
-    # construct export file path
+    """construct export file path"""
 
-    #### for test: random remove attribute
+    #### for testing anonyous naming function: randomly remove attribute
     # ds =  _test_random_remove_attribute(ds)
     
     if anonymous==True:
@@ -347,18 +347,6 @@ def _get_anonymous_full_path_dict(dicom_file_list, target_root, file_type):
         except:
             InstanceNumber = 'Ins'
 
-            # if new patient -> write patient ID
-        if PatientID not in patient_dict:
-            patient_dict['last_pt_num']+=1
-            patient_dict[PatientID] = {}
-            patient_dict[PatientID]['patient_num'] = patient_dict['last_pt_num']
-            patient_dict[PatientID]['unknown_file'] = 0
-            patient_dict[PatientID]['last_study_num'] = 0
-
-        if AccessionNumber not in patient_dict[PatientID]:
-            patient_dict[PatientID]['last_study_num']+=1
-            patient_dict[PatientID][AccessionNumber] = patient_dict[PatientID]['last_study_num']
-
         # if new patient -> write patient ID
         if PatientID not in patient_dict:
             patient_dict['last_pt_num']+=1
@@ -398,84 +386,8 @@ def _get_anonymous_full_path_dict(dicom_file_list, target_root, file_type):
 
 
 
-def _get_anonymous_file_name(ds, target_root, file_type, patient_dict):
-    # currenly of no use
-    """
-    input: ds, target_root, patient_dict, file_type
-    output: final full_file_path
-    """
-    # get metadata
-    try:
-        AccessionNumber = ds.AccessionNumber  # Acc number
-    except:
-        AccessionNumber = 'UnknownAccNum'
-    try:
-        Modality = ds.Modality  # modality
-    except:
-        Modality = 'UnknownModality'
-    try:
-        PatientID = ds.PatientID  # patient id
-    except:
-        PatientID = 'UnknownID'
-    try:
-        SeriesNumber = ds.SeriesNumber  # series number
-    except:
-        SeriesNumber = 'Ser'
-    try:
-        InstanceNumber = ds.InstanceNumber
-    except:
-        InstanceNumber = 'Ins'
-        
-        # if new patient -> write patient ID
-    if PatientID not in patient_dict:
-        patient_dict['last_pt_num']+=1
-        patient_dict[PatientID] = {}
-        patient_dict[PatientID]['patient_num'] = patient_dict['last_pt_num']
-        patient_dict[PatientID]['unknown_file'] = 0
-        patient_dict[PatientID]['last_study_num'] = 0
-        
-    if AccessionNumber not in patient_dict[PatientID]:
-        patient_dict[PatientID]['last_study_num']+=1
-        patient_dict[PatientID][AccessionNumber] = patient_dict[PatientID]['last_study_num']
-
-    # if new patient -> write patient ID
-    if PatientID not in patient_dict:
-        patient_dict['last_pt_num']+=1
-        patient_dict[PatientID] = {}
-        patient_dict[PatientID]['patient_num'] = patient_dict['last_pt_num']
-        patient_dict[PatientID]['unknown_file'] = 0
-        patient_dict[PatientID]['last_study_num'] = 0
-        
-    if AccessionNumber not in patient_dict[PatientID]:
-        patient_dict[PatientID]['last_study_num']+=1
-        patient_dict[PatientID][AccessionNumber] = patient_dict[PatientID]['last_study_num']
-
-    # if any unknown components
-    is_unknown_file = AccessionNumber=='UnknownAccNum' or \
-                        Modality == 'UnknownModality' or \
-                        PatientID == 'UnknownID' or \
-                        SeriesNumber == 'Ser' or \
-                        InstanceNumber == 'Ins'
-
-    # patient folder and study folder
-    patient_folder_name = f"Patient_{patient_dict[PatientID]['patient_num']}"
-    study_folder_name = f"{patient_dict[PatientID][AccessionNumber]}_{Modality}"
-    # file name. if any unknown components -> use unknown file count
-    if is_unknown_file:
-        patient_dict[PatientID]['unknown_file']+=1
-        file_name = f"img_{patient_dict[PatientID]['unknown_file']}.{file_type}"
-    else:
-        file_name = f"{SeriesNumber}_{InstanceNumber}.{file_type}"
-    # date
-    today_str = time.strftime('%Y%m%d')
-    
-    full_file_path = target_root / Path(today_str) / Path(patient_folder_name) / Path(study_folder_name) / Path(file_name)
-    
-    return full_file_path
-
-
 def _get_metadata(ds):
-    # get patient metadata
+    """get patient metadata"""
     metadata = {}
     try:
         metadata['StudyDate'] = ds.StudyDate  # study date
