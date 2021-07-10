@@ -94,14 +94,15 @@ def _pixel_process(ds, pixel_array):
         window_center = ds.WindowCenter
         window_width = ds.WindowWidth
         # some values may be stored in an array
+        # fix bug -> int(window center/level) may lead to erronous image in small window/level files, such as DWI/ADC
         if type(window_center)==pydicom.multival.MultiValue:
-            window_center = int(window_center[0])
+            window_center = float(window_center[0])
         else:
-            window_center = int(window_center)
+            window_center = float(window_center)
         if type(window_width)==pydicom.multival.MultiValue:
-            window_width = int(window_width[0])
+            window_width = float(window_width[0])
         else:
-            window_width = int(window_width)
+            window_width = float(window_width)
         pixel_array = _get_LUT_value(pixel_array, window_width, window_center)
     except:
     # if there is no window center, window width tag, try obtaining VOI LUT setting (usually happens to plain films)
