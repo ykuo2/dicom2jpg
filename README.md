@@ -16,9 +16,6 @@ dicom_img_01 = "/Users/user/Desktop/img01.dcm"
 dicom_dir = "/Users/user/Desktop/Patient_01"
 export_location = "/Users/user/Desktop/BMP_files"
 
-# convert single DICOM file to numpy.ndarray for further use
-img_data = dicom2jpg.dicom2img(dicom_img_01)
-
 # convert single DICOM file to jpg format
 dicom2jpg.dicom2jpg(dicom_img_01)  
 
@@ -27,6 +24,9 @@ dicom2jpg.dicom2png(dicom_dir)
 
 # convert all DICOM files in dicom_dir folder to bmp, to a specified location
 dicom2jpg.dicom2bmp(dicom_dir, target_root=export_location) 
+
+# convert single DICOM file to numpy.ndarray for further use
+img_data = dicom2jpg.dicom2img(dicom_img_01)
 
 # convert DICOM ByteIO to numpy.ndarray
 img_data = dicom2jpg.io2img(dicomIO)
@@ -44,19 +44,23 @@ It applies window center(level) and window width adjustment, or VOI LUT function
 
 `dicom2jpg.dicom2tiff(origin, target_root=None, anonymous=False, multiprocessing=True)`
 
+- origin can be a single DICOM file, a folder, or a list/tuple of file/folder
+- target_root would be the root folder of the first file/folder if not specified
+- exported files paths would be
+
+    > *target_root / Today / PatientID_Filetype / StudyDate_StudyTime_Modality_AccNum / Ser_Img.Filetype* 
+
+- anonymous files paths would be
+
+    > *target_root / Today / Patient_SerialNum / ModalitySerialNum_Modality / Ser_Img.Filetype*
+
+
 `dicom2jpg.dicom2img(origin)`
 
 `dicom2jpg.io2img(dicomIO)`
 
-- origin can be a single DICOM file or folder contains DICOM files
-- target_root is would be the same root folder of the origin if not specified
-- exported files will be in  
-
-    > *target_root/Today/PatientID_filetype/StudyDate_StudyTime_Modality_AccNum/Ser_Img.filetype* 
-
-- anonymous file paths are
-
-    > *target_root/Today/Patient_SerialNum/ModalitySerialNum_Modality/Ser_Img.filetype*
+- converting dicom files or ByteIO to ndarray
+- ndarray is in 8 bit; RGB format if it's a color image
 
 
 
