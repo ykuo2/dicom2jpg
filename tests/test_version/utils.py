@@ -9,41 +9,76 @@ import os
 import time
 import io
 import concurrent.futures
-# from multiprocessing import Manager
-# from multiprocessing import Pool
 
 
-def _dcmio_to_img(dcm_io):
-    if type(dcm_io)!=io.BytesIO:
-        raise TypeError("BytesIO is expected")
+def _dicom_to_img(origin, input_type):
+    """
+    ds -> img (ndarray in 8 bit; RGB format if it's color image)
+    oirigin: dicomIO or dicom file path
+    input_type: either ds or io
+    """
     
-    # read
-    ds = pydicom.dcmread(dcm_io)
+    if input_type=='ds':
+        origin = Path(origin)
+        if origin.exists() is False:
+            raise Exception(f"'{origin}' does not exist")
+        elif origin.is_file() is False:
+            raise Exception(f"'{origin}' is not a file")
+        elif origin.suffix.lower()!='.dcm':
+            raise Exception('Input file type should be a DICOM file')
+    else:
+        if type(origin)!=io.BytesIO:
+            raise TypeError("BytesIO is expected")
+        
+    # read images and their pixel data
+    ds = pydicom.dcmread(origin, force=True)
     
     # to exclude unsupported SOP class by its UID
-    # PDF
-    if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.104.1':
-        print('SOP class - 1.2.840.10008.5.1.4.1.1.104.1(Encapsulated PDF Storage) is currently not supported')
+    is_unsupported = _is_unsupported(ds)
+    if is_unsupported:
+        print(is_unsupported())
         return None
-    
+   
     # load pixel_array 
-    pixel_array = ds.pixel_array.astype(float) 
+    # *** This is one of the time-limited step  ***
+    pixel_array = ds.pixel_array.astype(float)  # preparing for scaling
     
     # if pixel_array.shape[2]==3 -> means color files [x,x,3]
+    # [o,x,x] means multiframe
     if len(pixel_array.shape)==3 and pixel_array.shape[2]!=3:
         print('Multiframe images are currently not supported')
         return None
-    
-    # process the image
+
+    #################
+    # Process image #
+    #################
     pixel_array = _pixel_process(ds, pixel_array)
     
     return pixel_array
 
 
+def _is_unsupported(ds):
+    """
+    input ds
+    if unsupported, return SOP class name
+    if supported, return False
+    """
+    # to exclude unsupported SOP class by its UID
+    # PDF
+    if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.104.1':
+        return 'Encapsulated PDF Storage'
+    # exclude object selection document
+    elif ds.SOPClassUID=='1.2.840.10008.5.1.4.1.1.88.59':
+        return 'Key Object Selection Document'
+    return False
+    
+
 def _pixel_process(ds, pixel_array):
-    # Process the images
-    # input image info and original pixeal_array
-    # return processed pixel_array
+    """
+    Process the images
+    input image info and original pixeal_array
+    return processed pixel_array, in 8bit; RGB if color
+    """
     
     # rescale slope, rescale intercept, adjust window and level
     try:
@@ -96,7 +131,9 @@ def _pixel_process(ds, pixel_array):
     
 
 def _get_LUT_value(data, window, level):
-    # Adjust according to LUT, window center(level) and width values
+    """
+    Adjust according to LUT, window center(level) and width values
+    """
     # xxx=np.piecewise(x, [condition1,condition2], [func1,func2])
     return np.piecewise(data, 
         [data<=(level-0.5-(window-1)/2),
@@ -105,25 +142,23 @@ def _get_LUT_value(data, window, level):
 
 
 
-def _ds_to_file(file_path, target_root, filetype, anonymous, patient_dict):
-    # return True if OK
-    # return message for dicom convertor to print out
-    # The aim of this function is to help multiprocessing
+def _ds_to_file(file_path, target_root, filetype, anonymous=None, patient_dict=None):
+    """
+    The aim of this function is to help multiprocessing
+    return True if OK
+    return message for dicom convertor to print out
+    """
+
     # read images and their pixel data
     # if anonymous is True -> precalculate patient_dict -> passed as patient dict 
     ds = pydicom.dcmread(file_path, force=True)
     
     # to exclude unsupported SOP class by its UID
-    # PDF
-    if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.104.1':
-        rv = f'{file_path} cannot be converted.\nEncapsulated PDF Storage is currently not supported'
-        #print()
+    is_unsupported = _is_unsupported(ds)
+    if is_unsupported:
+        rv = f'{file_path} cannot be converted.\n{is_unsupported} is currently not supported'
         return rv
-    # exclude object selection document
-    elif ds.SOPClassUID=='1.2.840.10008.5.1.4.1.1.88.59':
-        rv = f'{file_path} cannot be converted.\nKey Object Selection Document is currently not supported'
-        return rv
-    
+   
     # load pixel_array 
     # *** This is one of the time-limited step  ***
     pixel_array = ds.pixel_array.astype(float)  # preparing for scaling
@@ -143,8 +178,8 @@ def _ds_to_file(file_path, target_root, filetype, anonymous, patient_dict):
     ##########################
     # convert to pixel image #
     ##########################
-    if filetype.lower()=='img':
-        return pixel_array
+    #if filetype.lower()=='img':
+    #    return pixel_array
     
     ########################
     # Process to save file #
@@ -188,10 +223,11 @@ def _dicom_convertor(origin, target_root=None, filetype=None, anonymous=False, m
     target_root, dicom_file_list = _get_root_get_dicom_file_list(origin, target_root)
 
     # process image and return ndarray, only one file in dicom_file_list, return ndarray data
-    if filetype.lower()=='img':
-        return _ds_to_file(dicom_file_list[0], target_root, filetype)
+    # wrote new function _ds_to_img for dicom2img
+    #if filetype.lower()=='img':
+    #    return _ds_to_file(dicom_file_list[0], target_root, filetype)
     
-    # Pre-load anonymous patient full_path_dict (patient_dict in functions)
+    # if anonymous -> pre-load anonymous patient full_path_dict (patient_dict in functions)
     # multiprocessing.Manager is erroneous, may have ~2% images fail to write image
     # threading won't be faster
     if anonymous==True:
@@ -216,67 +252,68 @@ def _dicom_convertor(origin, target_root=None, filetype=None, anonymous=False, m
     return True
 
 
-def _get_root_get_dicom_file_list(origin, target_root):
-    # if single file, return root folder of origin file and a list of that file
-    origin = Path(origin)
+def _get_root_get_dicom_file_list(origin_input, target_root):
+    """
+    Process origin_input
+    if it is a list/tuple -> iterate through all the element
+    
+    return target root_folder 
+    - if specified, return Path object of target_root
+    - if unspecified, return parent folder of the first element in origin_input
+    return dicom_file_list
+    """
+    
+    # if it is in list or tuple -> iterate through items
+    # origin_list is a list, containing folders and files as Path type
+    if isinstance(origin_input, list) or isinstance(origin_input, tuple):
+        origin_list = [Path(ori) for ori in origin_input]  # make all items as path
+    else:
+        origin_list = [Path(origin_input)]
     dicom_file_list = []
     
+    # check file/folder existance and if they are dicom files
     # if file or folder does not exist
-    if not origin.exists():
-        raise OSError('File or folder does not exist')
-    # if it is a file, then check if it's a dicom and convert it to a list
-    if origin.is_file():
-        if origin.suffix.lower()!='.dcm':
-            raise Exception('Input file type should be a DICOM file')
-        else:
-            dicom_file_list = [origin]
-
-    # if it is a folder
-    else:
-        # read file
-        for root, sub_f, file in os.walk(origin):
-            for f in file:
-                if f.lower().endswith('.dcm'):
-                    file_path_dcm = Path(root)/Path(f)
-                    # file_path_exp =  folder_destination / Path(f).with_suffix('.jpg')
-                    # stor origin / destination
-                    dicom_file_list.append(file_path_dcm)
-    
+    for origin in origin_list:
+        if not origin.exists():
+            raise OSError(f"File or folder '{origin}' does not exist")
+        # if it is a file, then check if it's a dicom and add it to dicom_file_list
+        if origin.is_file():
+            if origin.suffix.lower()!='.dcm':
+                raise Exception('Input file type should be a DICOM file')
+            else:
+                dicom_file_list.append(origin)
+        # if it is a dir, then add all the dicom files into dicom_file_list
+        elif origin.is_dir():
+            for root, sub_f, file in os.walk(origin):
+                for f in file:
+                    if f.lower().endswith('.dcm'):
+                        file_path_dcm = Path(root)/Path(f)
+                        # file_path_exp =  folder_destination / Path(f).with_suffix('.jpg')
+                        # stor origin / destination
+                        dicom_file_list.append(file_path_dcm)
     # sort the list
     dicom_file_list.sort()
         
     # set root_folder
     # if target root is not specified, set as same root of origin file 
     if target_root is None:
-        root_folder = origin.parent
+        if isinstance(origin_input, list) or isinstance(origin_input, tuple):
+            # list or tuple -> the first element location
+            root_folder = Path(origin_input[0]).parent
+        else:
+            # single folder or file
+            root_folder = Path(origin_input).parent
     else:
         root_folder = Path(target_root)
-        
     return root_folder, dicom_file_list
 
-def _test_random_remove_attribute(ds):
-    
-    import random
-    rand_list = [1,2,3,4,5]
-    n = random.sample(rand_list,random.randint(0,5))
-    if 1 in n:
-        del ds.AccessionNumber
-    if 2 in n:
-        del ds.Modality
-    if 3 in n:
-        del ds.PatientID
-    if 4 in n:
-        del ds.SeriesNumber
-    if 5 in n:
-        del ds.InstanceNumber
-    return ds
+
+
 
 
 def _get_export_file_path(ds, file_path, target_root, filetype, anonymous, patient_dict):
     """construct export file path"""
 
-    #### for testing anonyous naming function: randomly remove attribute
-    # ds =  _test_random_remove_attribute(ds)
     
     if anonymous==True:
         # get from pre-calculated dictionary
