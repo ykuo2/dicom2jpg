@@ -111,10 +111,12 @@ def _pixel_process(ds, pixel_array):
         except:
             pass
 
+    # bug: this is unnecessary if aready adjusted by LUT sequence
     # normalize to 8bit information
     # Conver to uint8 (8-bit unsigned integer), for image to save/display
     # almost no difference. However, this formula yeild slightly more standard deviation 
-    pixel_array = ((pixel_array-pixel_array.min())/(pixel_array.max()-pixel_array.min())) * 255.0
+    # pixel_array = ((pixel_array-pixel_array.min())/(pixel_array.max()-pixel_array.min())) * 255.0
+    
 
     # if PhotometricInterpretation == "MONOCHROME1", then inverse; eg. xrays
     try:
