@@ -90,7 +90,10 @@ def _pixel_process(ds, pixel_array):
         pass
 
     # get window center and window width value
-    try:
+    # When the transformation is linear, the VOI LUT is described by the Window Center (0028,1050) and Window Width (0028,1051).
+    # When the transformation is non-linear, the VOI LUT is described by VOI LUT Sequence (0028,3010). (VOI-LUT)
+ 
+    if 'WindowCenter' in ds and 'WindowWidth' in ds:
         window_center = ds.WindowCenter
         window_width = ds.WindowWidth
         # some values may be stored in an array
@@ -104,13 +107,14 @@ def _pixel_process(ds, pixel_array):
         else:
             window_width = float(window_width)
         pixel_array = _get_LUT_value(pixel_array, window_width, window_center)
-    except:
+    elif 'VOILUTSequence' in ds:
+        # if there is no window center, window width tag, try obtaining VOI LUT setting (usually happens to plain films)
+        pixel_array = apply_voi_lut(pixel_array, ds)
+    else:
+        # if there is no window/level, no VOI LUT, then adjust by normalization
+        pixel_array = ((pixel_array-pixel_array.min())/(pixel_array.max()-pixel_array.min())) * 255.0
+        
     # if there is no window center, window width tag, try obtaining VOI LUT setting (usually happens to plain films)
-        try:
-            if ds.VOILUTSequence:
-                pixel_array = apply_voi_lut(ds.pixel_array, ds)
-        except:
-            pass
 
     # bug: this is unnecessary if aready adjusted by LUT sequence
     # normalize to 8bit information
@@ -120,12 +124,9 @@ def _pixel_process(ds, pixel_array):
     
 
     # if PhotometricInterpretation == "MONOCHROME1", then inverse; eg. xrays
-    try:
-        if ds.PhotometricInterpretation == "MONOCHROME1":
+    if 'PhotometricInterpretation' in ds and ds.PhotometricInterpretation == "MONOCHROME1":
         # NOT add minus directly
-            pixel_array = np.max(pixel_array) - pixel_array
-    except:
-        pass
+        pixel_array = np.max(pixel_array) - pixel_array
     
     # conver float -> 8-bit
     pixel_array = pixel_array.astype('uint8')
@@ -133,7 +134,7 @@ def _pixel_process(ds, pixel_array):
     return pixel_array
     
 
-def _get_LUT_value(data, window, level):
+def _get_LUT_value_deprecated(data, window, level):
     """
     Adjust according to LUT, window center(level) and width values
     """
@@ -143,6 +144,18 @@ def _get_LUT_value(data, window, level):
         data>(level-0.5+(window-1)/2)],
         [0,255,lambda data: ((data-(level-0.5))/(window-1)+0.5)*(255-0)])
 
+
+def _get_LUT_value(data, window, level):
+    """
+    Adjust according to LUT, window center(level) and width values
+    """
+    # xxx=np.piecewise(x, [condition1,condition2], [func1,func2])
+    data = np.piecewise(data, 
+        [data<=(level-(window)/2),
+        data>(level+(window)/2)],
+        [0,255,lambda data: ((data-level+window/2)/window*255)])
+    data = np.clip(data, a_min=0, a_max=255)
+    return data
 
 
 def _ds_to_file(file_path, target_root, filetype, anonymous=None, patient_dict=None):
