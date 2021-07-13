@@ -1,7 +1,7 @@
 
 
 __title__ = 'dicom2jpg'
-__version__ = "0.1.2"
+__version__ = "0.1.6"
 __author__ = 'Yu Kuo'
 __description__ = 'DICOM -> JPG/PNG/BMP/TIFF/ndarray'
 __url__ = 'https://github.com/ucs198604/dicom2jpg'
@@ -33,3 +33,12 @@ __license__ = 'MIT'
 #  support list/tuples of file origin
 #  re-write dicom2img, io2img
 #  update readme
+
+## 0.1.3
+#  fix bug of repeated rescaling for window/level 
+
+## 0.1.4
+#  fix bug: int(window center/level) may lead to erronous image in small window/level files, such as DWI/ADC
+
+## 0.1.6
+#  fix bug: LUT Functions according to C.11.2 
