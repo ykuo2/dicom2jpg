@@ -34,7 +34,9 @@ img_data = dicom2jpg.io2img(dicomIO)
 ```
 **dicom2jpg** 
 converts DICOM images to `JPG/PNG/BMP/TIFF` formats and to `numpy.ndarray`. 
-It applies window center(level) and window width adjustment, or VOI LUT function to the images, which makes output files looks like what we see on standard DICOM viewers.
+It piplines the lookup transformations by applying Modality LUT, VOI LUT, and Presentation LUT to the images,
+which makes output files looks like what we see on standard DICOM viewers.
+
 
 `dicom2jpg.dicom2jpg(origin, target_root=None, anonymous=False, multiprocessing=True)`
 
