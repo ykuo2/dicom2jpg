@@ -2,7 +2,7 @@
 dicom2jpg
 =========
 
-A simple function tool to convert DICOM files into jpg, png, tiff, or bmp files and Numpy array.
+A simple tool to convert DICOM files into jpg, png, tiff, or bmp files and Numpy array.
 It piplines the lookup transformations by applying Modality LUT, VOI LUT, and Presentation LUT to the images,
 which makes output files looks like what we see on standard DICOM viewers.
 """
