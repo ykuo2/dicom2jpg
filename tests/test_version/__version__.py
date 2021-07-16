@@ -1,7 +1,7 @@
 
 
 __title__ = 'dicom2jpg'
-__version__ = "0.1.6"
+__version__ = "0.1.7"
 __author__ = 'Yu Kuo'
 __description__ = 'DICOM -> JPG/PNG/BMP/TIFF/ndarray'
 __url__ = 'https://github.com/ucs198604/dicom2jpg'
@@ -42,3 +42,6 @@ __license__ = 'MIT'
 
 ## 0.1.6
 #  fix bug: LUT Functions according to C.11.2 
+
+## 0.1.7
+#  minor polishment

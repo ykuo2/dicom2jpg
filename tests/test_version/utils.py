@@ -77,10 +77,12 @@ def _pixel_process(ds, pixel_array):
     """
     Process the images
     input image info and original pixeal_array
+    applying LUTs: Modality LUT -> VOI LUT -> Presentation LUT    
     return processed pixel_array, in 8bit; RGB if color
     """
     
-    ## modality LUT or rescale fist, then VOI LUT
+    ## LUTs: Modality LUT -> VOI LUT -> Presentation LUT
+    # Modality LUT, Rescale slope, Rescale Intercept
     if 'RescaleSlope' in ds and 'RescaleIntercept' in ds:
         # try applying rescale slope/intercept
         # cannot use INT, because rescale slope could be<1 
@@ -91,17 +93,11 @@ def _pixel_process(ds, pixel_array):
         # otherwise, try to apply modality 
         pixel_array = apply_modality_lut(pixel_array, ds)
 
-    # get window center and window width value
-    # When the transformation is linear, the VOI LUT is described by the Window Center (0028,1050) and Window Width (0028,1051).
-    # When the transformation is non-linear, the VOI LUT is described by VOI LUT Sequence (0028,3010). (VOI-LUT)
- 
+
     # personally prefer sigmoid function than window/level
     # personally prefer LINEAR_EXACT than LINEAR (prone to err if small window/level, such as some MR images)
-    
     if 'VOILUTFunction' in ds and ds.VOILUTFunction=='SIGMOID':
         pixel_array = apply_voi_lut(pixel_array, ds)
-        # normalize to 8 bit
-        pixel_array = ((pixel_array-pixel_array.min())/(pixel_array.max()-pixel_array.min())) * 255.0
     elif 'WindowCenter' in ds and 'WindowWidth' in ds:
         window_center = ds.WindowCenter
         window_width = ds.WindowWidth
@@ -118,9 +114,10 @@ def _pixel_process(ds, pixel_array):
     else:
         # if there is no window center, window width tag, try applying VOI LUT setting
         pixel_array = apply_voi_lut(pixel_array, ds)
-        # normalize to 8 bit
-        pixel_array = ((pixel_array-pixel_array.min())/(pixel_array.max()-pixel_array.min())) * 255.0
         
+    # Presentation VOI
+    # normalize to 8 bit
+    pixel_array = ((pixel_array-pixel_array.min())/(pixel_array.max()-pixel_array.min())) * 255.0
     # if PhotometricInterpretation == "MONOCHROME1", then inverse; eg. xrays
     if 'PhotometricInterpretation' in ds and ds.PhotometricInterpretation == "MONOCHROME1":
         # NOT add minus directly
@@ -130,9 +127,10 @@ def _pixel_process(ds, pixel_array):
     return pixel_array.astype('uint8')
     
 
-def _get_LUT_value_LINEAR(data, window, level):
+def _get_LUT_value_LINEAR_normalized(data, window, level):
     """
-    Adjust according to LUT, window center(level) and width values
+    Adjust according to VOI LUT, window center(level) and width values
+    Normalized to 8 bit
     """
     return np.piecewise(data, 
         [data<=(level-0.5-(window-1)/2),
@@ -145,15 +143,31 @@ def _get_LUT_value_LINEAR(data, window, level):
 
 
 
-def _get_LUT_value_LINEAR_EXACT(data, window, level):
+def _get_LUT_value_LINEAR_EXACT_normalized(data, window, level):
     """
-    Adjust according to LUT, window center(level) and width values
+    Adjust according to VOI LUT, window center(level) and width values
+    Normalized to 8 bit
     """
     data = np.piecewise(data, 
         [data<=(level-(window)/2),
         data>(level+(window)/2)],
         [0,255,lambda data: ((data-level+window/2)/window*255)])
     return np.clip(data, a_min=0, a_max=255)
+
+
+def _get_LUT_value_LINEAR_EXACT(data, window, level):
+    """
+    Adjust according to VOI LUT, window center(level) and width values
+    not normalized
+    """
+    data_min = data.min()
+    data_max = data.max()
+    data_range = data_max - data_min
+    data = np.piecewise(data, 
+        [data<=(level-(window)/2),
+        data>(level+(window)/2)],
+        [data_min, data_max, lambda data: ((data-level+window/2)/window*data_range)+data_min])
+    return data
 
 
 def _ds_to_file(file_path, target_root, filetype, anonymous=None, patient_dict=None):
