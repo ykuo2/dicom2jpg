@@ -43,5 +43,5 @@ __license__ = 'MIT'
 ## 0.1.6
 #  fix bug: LUT Functions according to C.11.2 
 
-## 0.1.7, 0.1.8
+## 0.1.7, 0.1.8, 0.1.9
 #  minor polishment
