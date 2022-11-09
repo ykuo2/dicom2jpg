@@ -65,11 +65,14 @@ def _is_unsupported(ds):
     """
     # to exclude unsupported SOP class by its UID
     # PDF
-    if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.104.1':
-        return 'Encapsulated PDF Storage'
-    # exclude object selection document
-    elif ds.SOPClassUID=='1.2.840.10008.5.1.4.1.1.88.59':
-        return 'Key Object Selection Document'
+    try:
+        if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.104.1':
+            return 'Encapsulated PDF Storage'
+        # exclude object selection document
+        elif ds.SOPClassUID=='1.2.840.10008.5.1.4.1.1.88.59':
+            return 'Key Object Selection Document'
+    except:
+        pass
     return False
     
 
