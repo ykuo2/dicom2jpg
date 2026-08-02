@@ -3,3 +3,4 @@
 dicom2jpg/dicom2jpg.egg-info
 .pypirc
 /dicom2jpg.egg-info
+.DS_Store
